@@ -1,0 +1,7 @@
+/cache/
+/dist/
+
+# vendor packages
+/node_modules/
+
+npm-debug.log
