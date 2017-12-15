@@ -8,6 +8,16 @@ const MESSAGE_FORM_SELECTOR = '[data-message-form]';
 const initMessageForm = () => {
     const form = document.querySelector(MESSAGE_FORM_SELECTOR);
 
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', event => {
+            event.data.messages.forEach(message => {
+                document
+                    .querySelector(`[${MESSAGE_ID_ATTRIBUTE}="${message.id}"]`)
+                    .querySelector(MESSAGE_STATUS_SELECTOR).textContent = message.status;
+            })
+        })
+    }
+
     if (form) {
         form.addEventListener('submit', onFormSubmit);
     }
@@ -36,24 +46,43 @@ function onFormSubmit(e) {
         status: 'Sending...',
     };
 
-    appendMessage({ message, inbound: false, shouldCache: true });
+        appendMessage({ message, inbound: false, shouldCache: true });
 
-    fetch('/messages/send?ajax=true', {
-        method: 'POST',
-        headers: new Headers({'content-type': 'application/json'}),
-        body: JSON.stringify(message),
-        credentials: 'include'
+        return storeChat(message)
+            .then(() => {
+                return navigator.serviceWorker.ready.then(registration => {
+                    return registration.sync.register('syncChats')
+                })
+            }).catch(() => {
+                console.error('no background sync :(');
+                fetch('/messages/send?ajax=true', {
+                    method: 'POST',
+                    headers: new Headers({'content-type': 'application/json'}),
+                    body: JSON.stringify(message),
+                    credentials: 'include'
+                })
+                    .then(response => response.ok ? response.json() : onError(message.id))
+                    .then(message => {
+                        form.body.value = '';
+                        document
+                            .querySelector(`[${MESSAGE_ID_ATTRIBUTE}="${message.id}"]`)
+                            .querySelector(MESSAGE_STATUS_SELECTOR).textContent = message.status;
+
+                        return message;
+                    })
+                    .catch(() => onError(message.id))
+            }).then(() => {
+                form.body.value = '';
+            })
     })
-        .then(response => response.ok ? response.json() : onError(message.id))
-        .then(message => {
-            form.body.value = '';
-            document
-                .querySelector(`[${MESSAGE_ID_ATTRIBUTE}="${message.id}"]`)
-                .querySelector(MESSAGE_STATUS_SELECTOR).textContent = message.status;
+}
 
-            return message;
-        })
-        .catch(() => onError(message.id))
+function getRegistrationEndpoint() {
+    return navigator.serviceWorker.getRegistration()
+        .then(registration => registration.pushManager.getSubscription()
+            .then(subscription => subscription ? subscription.endpoint : null)
+        )
+
 }
 
 function onError(messageId) {
