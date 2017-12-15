@@ -21,5 +21,20 @@
 
 <script src="{{ revUrl('index.js') }}"></script>
 
+<script>
+    (function(window) {
+        'use strict';
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(function(registration) {
+                        return registration.update();
+                    })
+            });
+        }
+    }(window));
+</script>
+
 </body>
 </html>
