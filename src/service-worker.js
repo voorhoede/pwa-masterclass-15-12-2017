@@ -1,8 +1,53 @@
+const CORE_CACHE_NAME = 'core-cache';
+const CORE_ASSETS = [
+    '/index.css',
+    '/index.js',
+    '/offline/'
+];
+
+// Precache static assets
+self.addEventListener('install', event => {
+    console.log('installing sw');
+    event.waitUntil(caches.open(CORE_CACHE_NAME)
+        .then(cache => cache.addAll(CORE_ASSETS))
+        .then(() => self.skipWaiting())
+    );
+});
+
+// Delete outdated core caches
+self.addEventListener('activate', event => {
+    console.log('activating sw');
+    event.waitUntil(
+        caches.open(CORE_CACHE_NAME).then(cache => {
+            return cache.keys().then(requests => {
+                const outdatedCoreCaches = requests.filter(request => {
+                    return !CORE_ASSETS.includes(getPathName(request.url));
+                });
+
+                console.info('Deleting outdated core caches', outdatedCoreCaches);
+                outdatedCoreCaches.map(cacheName => {
+                    return cache.delete(cacheName)
+                });
+            })
+        }).then(() => self.clients.claim())
+    );
+});
+
+
 self.addEventListener('fetch', event => {
     const request = event.request;
-    if (request.headers.get('accept').indexOf('image/*') > -1) {
-        console.info('Image request: ', request.url);
-        event.respondWith(fetch('https://s14-eu5.ixquick.com/cgi-bin/serveimage?url=http%3A%2F%2Ft0.gstatic.com%2Fimages%3Fq%3Dtbn%3AANd9GcRjOqKI0kZG7nIV2w7AFRWfPUGiqeM0J26TbCp8irR1jZiNG556&sp=5ee1e78165b1fc58533374bb23c1ca22&anticache=266065'));
+    if (isCoreGetRequest(request)) {
+        console.info('Core get request: ', request.url);
+        event.respondWith(caches.open(CORE_CACHE_NAME)
+            .then(cache => cache.match(request.url)))
+    } else if (isHtmlGetRequest(request)) {
+        console.info('HTML get request', request.url);
+        event.respondWith(
+            fetch(request).catch((error) => {
+                console.info('HTML fetch failed. Return offline fallback', error);
+                return caches.open(CORE_CACHE_NAME).then(cache => cache.match('/offline/'))
+            })
+        )
     }
 });
 
@@ -13,7 +58,7 @@ self.addEventListener('fetch', event => {
  * @returns {Boolean}			Boolean value indicating whether the request is in the core mapping
  */
 function isCoreGetRequest(request) {
-    return request.method === 'GET' && CORE_ASSETS.includes(getPathName(request.url));
+    return request.method === 'GET' && CORE_ASSETS.indexOf(getPathName(request.url)) > -1;
 }
 
 /**
