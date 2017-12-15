@@ -13,6 +13,14 @@ const initMessageForm = () => {
     }
 };
 
+const chatDb = idb.open('chatDb', 1, upgradeDB => {
+    upgradeDB.createObjectStore('messages', { keyPath: 'key' });
+});
+
+function storeChat(message) {
+    return chatDb.then(db => db.transaction('messages', 'readwrite').objectStore('messages').put({ key: message.id, data: message }).complete);
+}
+
 function onFormSubmit(e) {
     e.preventDefault();
 
