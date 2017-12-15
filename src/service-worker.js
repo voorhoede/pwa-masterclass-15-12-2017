@@ -50,13 +50,49 @@ self.addEventListener('fetch', event => {
     } else if (isHtmlGetRequest(request)) {
         console.info('HTML get request', request.url);
         event.respondWith(
-            fetch(request).catch((error) => {
+            tryCacheThenNetwork(request, 'html-cache').catch((error) => {
                 console.info('HTML fetch failed. Return offline fallback', error);
                 return caches.open(CORE_CACHE_NAME).then(cache => cache.match('/offline/'))
             })
         )
     }
 });
+
+
+/**
+ * Tries to get a response for a request from cache storage. If it can't find one, get the response from the network.
+ *
+ * @param {Object} request		The request object
+ * @param {String} cacheName	The unique cache key in cache storage
+ * @returns {Promise}			Resolves with response object
+ */
+function tryCacheThenNetwork(request, cacheName) {
+    if (!cacheName) {
+        return fetch(request);
+    }
+    return caches.open(cacheName)
+        .then(cache => cache.match(request))
+        .then(response => response ? response : fetchAndCache(request, cacheName))
+}
+
+/**
+ * Fetch a request from the network an save it in cache storage
+ *
+ * @param {Object} request		The request object
+ * @param {String} cacheName	The unique cache key in cache storage
+ * @returns {Promise}			Resolves with response object
+ */
+function fetchAndCache(request, cacheName) {
+    return fetch(request).then(response => {
+        if (response.type !== 'opaqueredirect') { // filter out unauthenticated redirects
+            return caches.open(cacheName)
+                .then(cache => cache.put(request, response.clone()))
+                .then(() => response);
+        } else {
+            return response;
+        }
+    })
+}
 
 /**
  * Checks if a request is a core GET request
