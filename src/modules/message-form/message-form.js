@@ -46,35 +46,34 @@ function onFormSubmit(e) {
         status: 'Sending...',
     };
 
-        appendMessage({ message, inbound: false, shouldCache: true });
+    appendMessage({ message, inbound: false, shouldCache: true });
 
-        return storeChat(message)
-            .then(() => {
-                return navigator.serviceWorker.ready.then(registration => {
-                    return registration.sync.register('syncChats')
-                })
-            }).catch(() => {
-                console.error('no background sync :(');
-                fetch('/messages/send?ajax=true', {
-                    method: 'POST',
-                    headers: new Headers({'content-type': 'application/json'}),
-                    body: JSON.stringify(message),
-                    credentials: 'include'
-                })
-                    .then(response => response.ok ? response.json() : onError(message.id))
-                    .then(message => {
-                        form.body.value = '';
-                        document
-                            .querySelector(`[${MESSAGE_ID_ATTRIBUTE}="${message.id}"]`)
-                            .querySelector(MESSAGE_STATUS_SELECTOR).textContent = message.status;
-
-                        return message;
-                    })
-                    .catch(() => onError(message.id))
-            }).then(() => {
-                form.body.value = '';
+    return storeChat(message)
+        .then(() => {
+            return navigator.serviceWorker.ready.then(registration => {
+                return registration.sync.register('syncChats')
             })
-    })
+        }).catch(() => {
+            console.error('no background sync :(');
+            fetch('/messages/send?ajax=true', {
+                method: 'POST',
+                headers: new Headers({'content-type': 'application/json'}),
+                body: JSON.stringify(message),
+                credentials: 'include'
+            })
+                .then(response => response.ok ? response.json() : onError(message.id))
+                .then(message => {
+                    form.body.value = '';
+                    document
+                        .querySelector(`[${MESSAGE_ID_ATTRIBUTE}="${message.id}"]`)
+                        .querySelector(MESSAGE_STATUS_SELECTOR).textContent = message.status;
+
+                    return message;
+                })
+                .catch(() => onError(message.id))
+        }).then(() => {
+            form.body.value = '';
+        })
 }
 
 function getRegistrationEndpoint() {
